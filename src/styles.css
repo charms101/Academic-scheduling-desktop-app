@@ -1,0 +1,128 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: transparent;
+  font-family: 'Fauna One', serif;
+  color: #b5394f;
+}
+
+/*.widget {
+  background: rgba(255, 240, 245, 0.92);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  padding: 18px;
+  height: 100vh;
+  border: 1px solid rgba(255, 182, 193, 0.6);
+  box-shadow: 0 4px 24px rgba(255, 150, 180, 0.15);
+}*/
+
+.widget {
+  background: rgba(255, 240, 245, 0.92);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  padding: 18px;
+  height: 100vh;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 182, 193, 0.6);
+  box-shadow: 0 4px 24px rgba(255, 150, 180, 0.15);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 182, 193, 0.4);
+}
+
+.date {
+  font-size: 14px;
+  font-weight: 700;
+  color: #ff6b9d;
+  font-family: 'Cinzel', serif;
+}
+
+.time {
+  font-size: 13px;
+  color: #ff6b9d;
+  font-family: 'Fauna One', serif;
+}
+
+.section {
+  margin-bottom: 14px;
+}
+
+.section h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #b5394f;
+  margin-bottom: 7px;
+  font-weight: 700;
+  font-family: 'Cinzel', serif;
+}
+
+.class-item, .assignment-item, .exam-item {
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: #b5394f;
+  border: 1px solid rgba(255, 182, 193, 0.3);
+  font-family: 'Fauna One', serif;
+}
+
+.class-item .time-label {
+  color: #e8a0b0;
+  font-size: 11px;
+  font-family: 'Fauna One', serif;
+}
+
+.assignment-item .due {
+  color: #d4a853;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: 'Fauna One', serif;
+}
+
+.assignment-item {
+  border-left: 3px solid #f5d97e;
+}
+
+.class-item {
+  border-left: 3px solid #f4a7b9;
+}
+
+.exam-item {
+  border-left: 3px solid #e07090;
+  background: rgba(255, 220, 230, 0.5);
+}
+
+.exam-item.urgent {
+  border-left: 3px solid #d94f70;
+  background: rgba(255, 200, 215, 0.6);
+}
+
+.exam-item .countdown {
+  color: #d94f70;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'Fauna One', serif;
+}
+
+.empty {
+  font-size: 12px;
+  color: #b5394f;
+  padding: 4px 0;
+  font-family: 'Fauna One', serif;
+}
+
+.widget::-webkit-scrollbar {
+  display: none;
+}

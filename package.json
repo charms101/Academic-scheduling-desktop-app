@@ -1,0 +1,31 @@
+{
+  "name": "homework-app",
+  "version": "1.0.0",
+  "description": "My class dashboard widget",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "build": {
+    "appId": "com.charmi.homeworkapp",
+    "productName": "Homework App",
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": "dmg"
+    },
+    "files": [
+      "main.js",
+      "src/**/*",
+      "data.json"
+    ]
+  },
+  "keywords": [],
+  "author": "Charmi",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^40.6.0",
+    "electron-builder": "^25.0.0"
+  }
+}

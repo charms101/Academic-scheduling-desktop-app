@@ -1,0 +1,46 @@
+{
+  "classes": [
+    { "name": "CS 418 - Data Science", "days": ["Tue", "Thu"], "time": "9:30 AM" },
+    { "name": "CS 362", "days": ["Tue", "Thu"], "time": "11:00 AM" },
+    { "name": "CS 342 - Java", "days": ["Tue", "Thu"], "time": "12:30 PM" },
+    { "name": "CS 341", "days": ["Tue", "Thu"], "time": "2:00 PM" },
+    { "name": "CS 361", "days": ["Tue", "Thu"], "time": "3:30 PM" }
+  ],
+  "assignments": [
+    { "name": "CS 341 HW 3", "due": "2026-02-26" },
+    { "name": "CS 341 HW 4", "due": "2026-03-12" },
+    { "name": "CS 341 HW 5", "due": "2026-04-09" },
+    { "name": "CS 341 HW 6", "due": "2026-04-28" },
+    { "name": "CS 342 HW 3", "due": "2026-03-03" },
+    { "name": "CS 342 HW 4", "due": "2026-03-17" },
+    { "name": "CS 342 HW 5", "due": "2026-04-07" },
+    { "name": "CS 342 HW 6", "due": "2026-04-21" },
+    { "name": "CS 362 Milestone 3", "due": "2026-03-02" },
+    { "name": "CS 362 HW 3", "due": "2026-02-26" },
+    { "name": "CS 362 Milestone 4", "due": "2026-03-13" },
+    { "name": "CS 362 Milestone 5 and 6", "due": "2026-03-16" },
+    { "name": "CS 362 Milestone 7", "due": "2026-04-03" },
+    { "name": "CS 362 Milestone 8", "due": "2026-04-27" },
+    { "name": "CS 362 Milestone 9", "due": "2026-03-29" },
+    { "name": "CS 362 Milestone 10", "due": "2026-05-01" },
+    { "name": "CS 418 Project Proposal", "due": "2026-02-24" },
+    { "name": "CS 418 video Proposal", "due": "2026-02-26" },
+    { "name": "CS 418 Project Report", "due": "2026-04-02" },
+    { "name": "CS 418 Presentation", "due": "2026-04-27" },
+    { "name": "CS 418 Final Report", "due": "2026-05-06" }
+  ],
+  "exams": [
+    { "name": "CS 341 Midterm 2", "date": "2026-03-10", "time": "2:00 PM" },
+    { "name": "CS 341 Midterm 3", "date": "2026-04-14", "time": "2:00 PM" },
+    { "name": "CS 342 Quiz W-07", "date": "2026-02-26", "time": "12:30 PM" },
+    { "name": "CS 342 MakeupQuiz", "date": "2026-03-05", "time": "12:30 PM" },
+    { "name": "CS 342 Quiz W-09", "date": "2026-03-12", "time": "12:30 PM" },
+    { "name": "CS 342 Quiz W-11", "date": "2026-04-02", "time": "12:30 PM" },
+    { "name": "CS 342 Quiz W-13", "date": "2026-04-16", "time": "12:30 PM" },
+    { "name": "CS 342 MakeupQuiz", "date": "2026-04-23", "time": "12:30 PM" },
+    { "name": "CS 362 Midterm", "date": "2026-03-10", "time": "11:00 AM" },
+    { "name": "CS 362 Lab Exam", "date": "2026-03-09", "time": "8:00 AM" },
+    { "name": "CS 418 Midterm", "date": "2026-03-17", "time": "9:30 AM" },
+    { "name": "CS 361 Midterm", "date": "2026-03-10", "time": "3:30 PM" }
+  ]
+}
