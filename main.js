@@ -5,6 +5,9 @@ const path = require('path')
 const dataPath = path.join(__dirname, 'data.json')
 const envPath = path.join(__dirname, '.env')
 const defaultGeminiModel = 'gemini-3.6-flash'
+const fallbackGeminiModels = ['gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-2.0-flash']
+const deprecatedGeminiModels = new Set(['gemini-2.5-flash'])
+const retryableGeminiStatuses = new Set([404, 429, 500, 502, 503, 504])
 
 function createWindow() { //a wraped fxn we can call when electron is ready
     const { width, height } = screen.getPrimaryDisplay().workAreaSize //getting monitors usable size
@@ -63,7 +66,8 @@ async function getGeminiApiKey() {
 
 async function getGeminiModel() {
     const model = await getEnvValue('GEMINI_MODEL') || defaultGeminiModel
-    return model.replace(/^models\//, '')
+    const cleanModel = model.replace(/^models\//, '')
+    return deprecatedGeminiModels.has(cleanModel) ? defaultGeminiModel : cleanModel
 }
 
 async function getEnvValue(name) {
@@ -220,21 +224,19 @@ function parseSyllabusLocally(text) {
     const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean)
     const result = { classes: [], assignments: [], exams: [] }
     const courseCodes = [...new Set(lines.map(extractCourseCode).filter(Boolean))]
-    const courseLine = lines.find(line => extractCourseCode(line))
 
     if (courseCodes.length) {
         courseCodes.forEach(code => {
+            const meetingLine = lines.find(line => {
+                const lineCode = extractCourseCode(line)
+                return lineCode === code && (parseDaysFromText(line).length || parseTimeFromText(line))
+            })
+
             result.classes.push({
                 name: code,
-                days: parseDaysFromText(text),
-                time: parseTimeFromText(text)
+                days: meetingLine ? parseDaysFromText(meetingLine) : [],
+                time: meetingLine ? parseTimeFromText(meetingLine) : ''
             })
-        })
-    } else if (courseLine) {
-        result.classes.push({
-            name: courseLine.replace(/\s+/g, ' ').slice(0, 80),
-            days: parseDaysFromText(text),
-            time: parseTimeFromText(text)
         })
     }
 
@@ -368,8 +370,7 @@ Text to parse:
 ${text.slice(0, 120000)}`
 }
 
-async function parseSyllabusWithGemini(text, apiKey) {
-    const model = await getGeminiModel()
+async function requestGeminiSchedule(text, apiKey, model) {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: 'POST',
         headers: {
@@ -393,7 +394,9 @@ async function parseSyllabusWithGemini(text, apiKey) {
 
     if (!response.ok) {
         const body = await response.text()
-        throw new Error(`Gemini request failed (${response.status}): ${body}`)
+        const error = new Error(getGeminiErrorMessage(response.status, body, model))
+        error.status = response.status
+        throw error
     }
 
     const body = await response.json()
@@ -403,6 +406,35 @@ async function parseSyllabusWithGemini(text, apiKey) {
 
     if (!outputText) throw new Error('Gemini did not return schedule JSON.')
     return normalizeImportedData(JSON.parse(outputText))
+}
+
+async function parseSyllabusWithGemini(text, apiKey) {
+    const preferredModel = await getGeminiModel()
+    const models = [...new Set([preferredModel, ...fallbackGeminiModels])]
+    let lastError = null
+    const failures = []
+
+    for (const model of models) {
+        try {
+            return await requestGeminiSchedule(text, apiKey, model)
+        } catch (error) {
+            lastError = error
+            failures.push(error.message)
+            if (!retryableGeminiStatuses.has(error.status)) break
+        }
+    }
+
+    throw new Error(failures.length > 1 ? failures.join(' | ') : lastError.message)
+}
+
+function getGeminiErrorMessage(status, body, model) {
+    try {
+        const parsed = JSON.parse(body)
+        const message = parsed.error?.message || 'Unknown Gemini error.'
+        return `Gemini request failed (${status}) using ${model}: ${message}`
+    } catch (error) {
+        return `Gemini request failed (${status}) using ${model}.`
+    }
 }
 
 ipcMain.handle('parse-syllabus', async (_event, payload) => {
@@ -427,7 +459,7 @@ ipcMain.handle('parse-syllabus', async (_event, payload) => {
             return {
                 imported,
                 usedAi: false,
-                warning: `${error.message} Local parser results are shown instead.`
+                warning: `${error.message} Local parser results are only a rough backup.`
             }
         }
     }

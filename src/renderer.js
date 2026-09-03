@@ -225,6 +225,7 @@ function renderReviewList(data) {
   const container = document.getElementById('review-list')
   const rows = []
 
+  if (data.classes.length) rows.push('<h4 class="review-heading">Classes</h4>')
   data.classes.forEach((item, index) => {
     rows.push(`
       <div class="review-item" data-type="classes" data-index="${index}">
@@ -239,6 +240,7 @@ function renderReviewList(data) {
     `)
   })
 
+  if (data.assignments.length) rows.push('<h4 class="review-heading">Assignments</h4>')
   data.assignments.forEach((item, index) => {
     rows.push(`
       <div class="review-item" data-type="assignments" data-index="${index}">
@@ -251,6 +253,7 @@ function renderReviewList(data) {
     `)
   })
 
+  if (data.exams.length) rows.push('<h4 class="review-heading">Exams</h4>')
   data.exams.forEach((item, index) => {
     rows.push(`
       <div class="review-item" data-type="exams" data-index="${index}">

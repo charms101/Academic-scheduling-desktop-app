@@ -254,6 +254,13 @@ textarea {
   color: #98506a;
 }
 
+.review-heading {
+  margin: 12px 0 7px;
+  color: #81283f;
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+}
+
 .review-item {
   display: grid;
   grid-template-columns: 82px 1fr;
