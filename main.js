@@ -3,6 +3,7 @@ const fs = require('fs/promises')
 const path = require('path')
 
 const dataPath = path.join(__dirname, 'data.json')
+const envPath = path.join(__dirname, '.env')
 
 function createWindow() { //a wraped fxn we can call when electron is ready
     const { width, height } = screen.getPrimaryDisplay().workAreaSize //getting monitors usable size
@@ -53,6 +54,26 @@ async function writeDashboardData(data) {
 
 function normalizeText(value) {
     return String(value || '').trim()
+}
+
+async function getGeminiApiKey() {
+    if (normalizeText(process.env.GEMINI_API_KEY)) {
+        return normalizeText(process.env.GEMINI_API_KEY)
+    }
+
+    try {
+        const envFile = await fs.readFile(envPath, 'utf-8')
+        const line = envFile
+            .split(/\r?\n/)
+            .find(entry => entry.trim().startsWith('GEMINI_API_KEY='))
+
+        if (!line) return ''
+
+        const value = line.split('=').slice(1).join('=').trim()
+        return value.replace(/^["']|["']$/g, '')
+    } catch (error) {
+        return ''
+    }
 }
 
 function extractCourseCode(text) {
@@ -231,6 +252,26 @@ function parseSyllabusLocally(text) {
     return normalizeImportedData(result)
 }
 
+async function extractTextFromBuffer(fileName, fileBuffer) {
+    if (!fileBuffer) return ''
+
+    const ext = path.extname(fileName || '').toLowerCase()
+    const buffer = Buffer.from(fileBuffer)
+
+    if (ext === '.pdf') {
+        const { PDFParse } = require('pdf-parse')
+        const parser = new PDFParse({ data: buffer })
+        try {
+            const result = await parser.getText()
+            return result.text || ''
+        } finally {
+            await parser.destroy()
+        }
+    }
+
+    return buffer.toString('utf-8')
+}
+
 async function extractTextFromFile(filePath) {
     if (!filePath) return ''
 
@@ -250,92 +291,117 @@ async function extractTextFromFile(filePath) {
     return fs.readFile(filePath, 'utf-8')
 }
 
-async function parseSyllabusWithOpenAI(text, apiKey) {
+function getScheduleSchema() {
+    return {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+            classes: {
+                type: 'array',
+                items: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: {
+                        name: { type: 'string' },
+                        days: {
+                            type: 'array',
+                            items: { type: 'string', enum: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] }
+                        },
+                        time: { type: 'string' }
+                    },
+                    required: ['name', 'days', 'time']
+                }
+            },
+            assignments: {
+                type: 'array',
+                items: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: {
+                        name: { type: 'string' },
+                        due: { type: 'string' }
+                    },
+                    required: ['name', 'due']
+                }
+            },
+            exams: {
+                type: 'array',
+                items: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: {
+                        name: { type: 'string' },
+                        date: { type: 'string' },
+                        time: { type: 'string' }
+                    },
+                    required: ['name', 'date', 'time']
+                }
+            }
+        },
+        required: ['classes', 'assignments', 'exams']
+    }
+}
+
+function getSchedulePrompt(text) {
     const today = new Date().toISOString().slice(0, 10)
     const currentYear = new Date().getFullYear()
-    const response = await fetch('https://api.openai.com/v1/responses', {
+    return `Extract an academic schedule from a syllabus or short typed academic notes.
+
+Today is ${today}. If a date has no year, assume ${currentYear}.
+
+Rules:
+- Return only items explicitly present in the text.
+- Dates must be ISO YYYY-MM-DD.
+- Day abbreviations must be Mon, Tue, Wed, Thu, Fri, Sat, or Sun.
+- If a time is missing, use an empty string.
+- When text names a course code like CS 377, include a class item named exactly "CS 377" unless a fuller class name is provided.
+- Keep assignment and exam names close to the user's wording, including the course code when present.
+- For a note like "CS 377 select a book assignment due on 8th september", create class "CS 377" and assignment name "CS 377 select a book assignment".
+
+Text to parse:
+${text.slice(0, 120000)}`
+}
+
+async function parseSyllabusWithGemini(text, apiKey) {
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
         method: 'POST',
         headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            'x-goog-api-key': apiKey,
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            model: 'gpt-5-mini',
-            instructions: `Extract an academic schedule from a syllabus or short typed academic notes. Today is ${today}. Return only items explicitly present in the text. Dates must be ISO YYYY-MM-DD. If a date has no year, assume the current year is ${currentYear}. Day abbreviations must be Mon, Tue, Wed, Thu, Fri, Sat, or Sun. If a time is missing, use an empty string. When a note names a course code like CS 377, add a class item named exactly "CS 377" if no fuller class name is provided. Keep assignment and exam names close to the user wording, including the course code when present.`,
-            input: text.slice(0, 120000),
-            text: {
-                format: {
-                    type: 'json_schema',
-                    name: 'academic_schedule',
-                    strict: true,
-                    schema: {
-                        type: 'object',
-                        additionalProperties: false,
-                        properties: {
-                            classes: {
-                                type: 'array',
-                                items: {
-                                    type: 'object',
-                                    additionalProperties: false,
-                                    properties: {
-                                        name: { type: 'string' },
-                                        days: {
-                                            type: 'array',
-                                            items: { type: 'string', enum: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] }
-                                        },
-                                        time: { type: 'string' }
-                                    },
-                                    required: ['name', 'days', 'time']
-                                }
-                            },
-                            assignments: {
-                                type: 'array',
-                                items: {
-                                    type: 'object',
-                                    additionalProperties: false,
-                                    properties: {
-                                        name: { type: 'string' },
-                                        due: { type: 'string' }
-                                    },
-                                    required: ['name', 'due']
-                                }
-                            },
-                            exams: {
-                                type: 'array',
-                                items: {
-                                    type: 'object',
-                                    additionalProperties: false,
-                                    properties: {
-                                        name: { type: 'string' },
-                                        date: { type: 'string' },
-                                        time: { type: 'string' }
-                                    },
-                                    required: ['name', 'date', 'time']
-                                }
-                            }
-                        },
-                        required: ['classes', 'assignments', 'exams']
-                    }
+            contents: [
+                {
+                    parts: [
+                        { text: getSchedulePrompt(text) }
+                    ]
                 }
+            ],
+            generationConfig: {
+                responseMimeType: 'application/json',
+                responseSchema: getScheduleSchema()
             }
         })
     })
 
     if (!response.ok) {
         const body = await response.text()
-        throw new Error(`OpenAI request failed (${response.status}): ${body}`)
+        throw new Error(`Gemini request failed (${response.status}): ${body}`)
     }
 
     const body = await response.json()
-    const outputText = body.output_text || body.output?.flatMap(item => item.content || [])
-        .find(content => content.type === 'output_text')?.text
+    const outputText = body.candidates?.[0]?.content?.parts
+        ?.map(part => part.text || '')
+        .join('')
 
-    if (!outputText) throw new Error('OpenAI did not return schedule JSON.')
+    if (!outputText) throw new Error('Gemini did not return schedule JSON.')
     return normalizeImportedData(JSON.parse(outputText))
 }
 
 ipcMain.handle('parse-syllabus', async (_event, payload) => {
-    const fileText = await extractTextFromFile(payload.filePath)
+    const fileText = payload.fileBuffer
+        ? await extractTextFromBuffer(payload.fileName, payload.fileBuffer)
+        : await extractTextFromFile(payload.filePath)
     const extraText = normalizeText(payload.extraText)
     const syllabusText = [fileText, extraText].filter(Boolean).join('\n\n')
 
@@ -343,9 +409,11 @@ ipcMain.handle('parse-syllabus', async (_event, payload) => {
         throw new Error('Choose a syllabus file or paste syllabus text first.')
     }
 
-    if (normalizeText(payload.apiKey)) {
+    const apiKey = await getGeminiApiKey()
+
+    if (apiKey) {
         try {
-            const imported = await parseSyllabusWithOpenAI(syllabusText, normalizeText(payload.apiKey))
+            const imported = await parseSyllabusWithGemini(syllabusText, apiKey)
             return { imported, usedAi: true, warning: '' }
         } catch (error) {
             const imported = parseSyllabusLocally(syllabusText)
@@ -360,7 +428,7 @@ ipcMain.handle('parse-syllabus', async (_event, payload) => {
     return {
         imported: parseSyllabusLocally(syllabusText),
         usedAi: false,
-        warning: 'No API key entered, so the local parser made a best guess.'
+        warning: 'No GEMINI_API_KEY found in .env or your shell environment, so the local parser made a best guess.'
     }
 })
 

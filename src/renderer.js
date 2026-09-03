@@ -1,4 +1,4 @@
-const { ipcRenderer } = require('electron')
+const { ipcRenderer, webUtils } = require('electron')
 const fs = require('fs')
 const path = require('path')
 
@@ -321,14 +321,16 @@ function setReviewStatus(message, isError = false) {
 
 async function parseSyllabus() {
   const fileInput = document.getElementById('syllabus-file')
-  const filePath = fileInput.files[0]?.path || ''
+  const selectedFile = fileInput.files[0]
+  const filePath = selectedFile && webUtils?.getPathForFile ? webUtils.getPathForFile(selectedFile) : ''
+  const fileBuffer = selectedFile ? await selectedFile.arrayBuffer() : null
+  const fileName = selectedFile?.name || ''
   const extraText = document.getElementById('extra-text').value
-  const apiKey = document.getElementById('api-key').value
 
   setImportStatus('Reading syllabus...')
 
   try {
-    const result = await ipcRenderer.invoke('parse-syllabus', { filePath, extraText, apiKey })
+    const result = await ipcRenderer.invoke('parse-syllabus', { filePath, fileBuffer, fileName, extraText })
     importedData = result.imported
     renderReviewList(importedData)
 
