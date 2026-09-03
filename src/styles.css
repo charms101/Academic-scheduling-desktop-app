@@ -284,6 +284,14 @@ textarea {
   gap: 8px;
 }
 
+.compact-row {
+  margin-bottom: 8px;
+}
+
+.compact-row .text-button {
+  margin-top: 0;
+}
+
 .danger-button {
   border-color: rgba(155, 43, 80, 0.35);
   color: #982b55;

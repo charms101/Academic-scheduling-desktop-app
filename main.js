@@ -4,9 +4,16 @@ const path = require('path')
 
 const dataPath = path.join(__dirname, 'data.json')
 const envPath = path.join(__dirname, '.env')
-const defaultGeminiModel = 'gemini-3.6-flash'
-const fallbackGeminiModels = ['gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-2.0-flash']
-const deprecatedGeminiModels = new Set(['gemini-2.5-flash'])
+const defaultGeminiModel = 'gemini-3.7-flash'
+const fallbackGeminiModels = [
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
+    'gemini-3.5-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-3.1-flash-lite',
+    'gemini-3-flash-preview'
+]
+const deprecatedGeminiModels = new Set(['gemini-2.5-flash', 'gemini-2.0-flash'])
 const retryableGeminiStatuses = new Set([404, 429, 500, 502, 503, 504])
 
 function createWindow() { //a wraped fxn we can call when electron is ready
@@ -68,6 +75,24 @@ async function getGeminiModel() {
     const model = await getEnvValue('GEMINI_MODEL') || defaultGeminiModel
     const cleanModel = model.replace(/^models\//, '')
     return deprecatedGeminiModels.has(cleanModel) ? defaultGeminiModel : cleanModel
+}
+
+async function getAvailableGeminiModels(apiKey) {
+    try {
+        const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
+            headers: { 'x-goog-api-key': apiKey }
+        })
+
+        if (!response.ok) return []
+
+        const body = await response.json()
+        return (body.models || [])
+            .filter(model => Array.isArray(model.supportedGenerationMethods) && model.supportedGenerationMethods.includes('generateContent'))
+            .map(model => normalizeText(model.name).replace(/^models\//, ''))
+            .filter(Boolean)
+    } catch (error) {
+        return []
+    }
 }
 
 async function getEnvValue(name) {
@@ -136,6 +161,12 @@ function normalizeImportedData(raw) {
 
 function itemKey(item) {
     return JSON.stringify(item)
+}
+
+function itemBelongsToClassName(itemName, className) {
+    const classCode = extractCourseCode(className)
+    if (!classCode) return false
+    return normalizeText(itemName).toUpperCase().includes(classCode)
 }
 
 function mergeDashboardData(existing, imported) {
@@ -410,9 +441,18 @@ async function requestGeminiSchedule(text, apiKey, model) {
 
 async function parseSyllabusWithGemini(text, apiKey) {
     const preferredModel = await getGeminiModel()
-    const models = [...new Set([preferredModel, ...fallbackGeminiModels])]
+    const availableModels = await getAvailableGeminiModels(apiKey)
+    const candidateModels = [...new Set([preferredModel, ...fallbackGeminiModels])]
+        .filter(model => !deprecatedGeminiModels.has(model))
+    const models = availableModels.length
+        ? candidateModels.filter(model => availableModels.includes(model))
+        : candidateModels
     let lastError = null
     const failures = []
+
+    if (!models.length) {
+        throw new Error('No supported Gemini text models were available for this API key.')
+    }
 
     for (const model of models) {
         try {
@@ -424,7 +464,7 @@ async function parseSyllabusWithGemini(text, apiKey) {
         }
     }
 
-    throw new Error(failures.length > 1 ? failures.join(' | ') : lastError.message)
+    throw new Error(formatGeminiFailures(failures, models))
 }
 
 function getGeminiErrorMessage(status, body, model) {
@@ -435,6 +475,18 @@ function getGeminiErrorMessage(status, body, model) {
     } catch (error) {
         return `Gemini request failed (${status}) using ${model}.`
     }
+}
+
+function formatGeminiFailures(failures, models) {
+    if (!failures.length) return 'Gemini could not parse this syllabus.'
+
+    const tried = models.join(', ')
+    const capacityFailure = failures.some(message => /high demand|429|500|502|503|504/i.test(message))
+    if (capacityFailure) {
+        return `Gemini is temporarily busy for the available models (${tried}). Try again in a few minutes.`
+    }
+
+    return failures[failures.length - 1]
 }
 
 ipcMain.handle('parse-syllabus', async (_event, payload) => {
@@ -474,6 +526,20 @@ ipcMain.handle('parse-syllabus', async (_event, payload) => {
 ipcMain.handle('save-imported-schedule', async (_event, imported) => {
     const existing = await readDashboardData()
     const nextData = mergeDashboardData(existing, normalizeImportedData(imported))
+    return writeDashboardData(nextData)
+})
+
+ipcMain.handle('delete-class', async (_event, className) => {
+    const name = normalizeText(className)
+    if (!name) throw new Error('No class selected.')
+
+    const existing = await readDashboardData()
+    const nextData = {
+        classes: (existing.classes || []).filter(classItem => normalizeText(classItem.name) !== name),
+        assignments: (existing.assignments || []).filter(item => !itemBelongsToClassName(item.name, name)),
+        exams: (existing.exams || []).filter(item => !itemBelongsToClassName(item.name, name))
+    }
+
     return writeDashboardData(nextData)
 })
 

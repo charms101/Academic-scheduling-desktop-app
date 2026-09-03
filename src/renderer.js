@@ -13,6 +13,7 @@ const screenTitles = {
 
 let dashboardData = { classes: [], assignments: [], exams: [] }
 let importedData = { classes: [], assignments: [], exams: [] }
+let selectedClassName = ''
 
 function loadData() {
   try {
@@ -181,6 +182,7 @@ function renderClassDetail(index) {
   const classItem = dashboardData.classes[index]
   if (!classItem) return
 
+  selectedClassName = classItem.name
   document.getElementById('detail-class-name').textContent = classItem.name
   document.getElementById('detail-class-time').textContent =
     `${getDaysLabel(classItem.days)}${classItem.time ? ` · ${classItem.time}` : ''}`
@@ -219,6 +221,23 @@ function renderClassDetail(index) {
     : '<p class="empty">No exams matched to this class</p>'
 
   showScreen('class-detail')
+}
+
+async function deleteSelectedClass() {
+  if (!selectedClassName) return
+
+  const shouldDelete = window.confirm(`Delete ${selectedClassName} and its matched assignments/exams?`)
+  if (!shouldDelete) return
+
+  try {
+    const saved = await ipcRenderer.invoke('delete-class', selectedClassName)
+    selectedClassName = ''
+    dashboardData = saved
+    render()
+    showScreen('classes')
+  } catch (error) {
+    window.alert(`Could not delete class: ${error.message}`)
+  }
 }
 
 function renderReviewList(data) {
@@ -385,6 +404,7 @@ function attachEvents() {
   })
 
   document.getElementById('back-to-classes').addEventListener('click', () => showScreen('classes'))
+  document.getElementById('delete-class').addEventListener('click', deleteSelectedClass)
   document.getElementById('back-to-import').addEventListener('click', () => showScreen('import'))
   document.getElementById('parse-syllabus').addEventListener('click', parseSyllabus)
   document.getElementById('save-review').addEventListener('click', saveReview)

@@ -1,19 +1,57 @@
 {
   "classes": [
     {
-      "name": "CS 473",
+      "name": "CS 473 Compiler Design",
       "days": [
         "Mon",
-        "Tue",
-        "Wed",
-        "Thu",
-        "Fri",
-        "Sat",
-        "Sun"
+        "Wed"
       ],
-      "time": "12:30"
+      "time": "12h30pm-1h45pm"
     }
   ],
-  "assignments": [],
-  "exams": []
+  "assignments": [
+    {
+      "name": "Assignment 0",
+      "due": "2026-09-05"
+    },
+    {
+      "name": "Assignment 1",
+      "due": "2026-09-12"
+    },
+    {
+      "name": "Assignment 2",
+      "due": "2026-09-26"
+    },
+    {
+      "name": "Assignment 3.1",
+      "due": "2026-10-10"
+    },
+    {
+      "name": "Assignment 3.2",
+      "due": "2026-10-17"
+    },
+    {
+      "name": "Assignment 4.1",
+      "due": "2026-10-31"
+    },
+    {
+      "name": "Assignment 4.2",
+      "due": "2026-11-07"
+    },
+    {
+      "name": "Assignment 5.1",
+      "due": "2026-11-21"
+    },
+    {
+      "name": "Assignment 5.2",
+      "due": "2026-12-05"
+    }
+  ],
+  "exams": [
+    {
+      "name": "Midterm exam",
+      "date": "2026-10-14",
+      "time": "12h30pm-1h45pm"
+    }
+  ]
 }
