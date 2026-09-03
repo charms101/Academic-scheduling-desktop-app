@@ -27,5 +27,8 @@
   "devDependencies": {
     "electron": "^40.6.0",
     "electron-builder": "^25.0.0"
+  },
+  "dependencies": {
+    "pdf-parse": "^2.4.5"
   }
 }

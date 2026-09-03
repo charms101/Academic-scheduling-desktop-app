@@ -9,30 +9,103 @@
   <body>
     <div class="widget">
       <div class="header">
-        <span class="date" id="current-date"></span>
+        <div>
+          <span class="date" id="current-date"></span>
+          <div class="screen-title" id="screen-title">Dashboard</div>
+        </div>
         <span class="time" id="current-time"></span>
       </div>
 
-      <div class="section">
-        <h3>🌸 Today's Classes</h3>
-        <div id="todays-classes">
-          <p class="empty">No classes today ✨</p>
-        </div>
-      </div>
+      <nav class="tabs" aria-label="App screens">
+        <button class="tab-button active" data-screen="dashboard" title="Dashboard">⌂</button>
+        <button class="tab-button" data-screen="classes" title="Classes">▦</button>
+        <button class="tab-button" data-screen="import" title="Import syllabus">＋</button>
+      </nav>
 
-      <div class="section">
-        <h3>🎀 Due Soon</h3>
-        <div id="due-soon">
-          <p class="empty">Nothing due soon 🌷</p>
-        </div>
-      </div>
+      <main>
+        <section class="screen active" id="dashboard-screen">
+          <div class="section">
+            <h3>Today's Classes</h3>
+            <div id="todays-classes">
+              <p class="empty">No classes today</p>
+            </div>
+          </div>
 
-      <div class="section">
-        <h3>💅 Exams</h3>
-        <div id="exams">
-          <p class="empty">No upcoming exams 🍵</p>
-        </div>
-      </div>
+          <div class="section">
+            <h3>Due Soon</h3>
+            <div id="due-soon">
+              <p class="empty">Nothing due soon</p>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Quizzes & Exams</h3>
+            <div id="exams">
+              <p class="empty">No upcoming exams</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="screen" id="classes-screen">
+          <div class="section">
+            <h3>Class Home</h3>
+            <div id="class-list"></div>
+          </div>
+        </section>
+
+        <section class="screen" id="class-detail-screen">
+          <button class="text-button" id="back-to-classes">← Classes</button>
+          <div class="class-hero">
+            <h2 id="detail-class-name"></h2>
+            <p id="detail-class-time"></p>
+          </div>
+
+          <div class="section">
+            <h3>Meeting Days / Times</h3>
+            <div id="detail-meetings"></div>
+          </div>
+
+          <div class="section">
+            <h3>Assignments</h3>
+            <div id="detail-assignments"></div>
+          </div>
+
+          <div class="section">
+            <h3>Quizzes / Exams</h3>
+            <div id="detail-exams"></div>
+          </div>
+        </section>
+
+        <section class="screen" id="import-screen">
+          <div class="section">
+            <h3>Import Syllabus</h3>
+            <label class="field-label" for="syllabus-file">PDF or text file</label>
+            <input id="syllabus-file" type="file" accept=".pdf,.txt,.md" />
+
+            <label class="field-label" for="extra-text">Extra notes or pasted syllabus text</label>
+            <textarea id="extra-text" placeholder="Paste schedule notes, Canvas deadlines, or anything the PDF misses..."></textarea>
+
+            <label class="field-label" for="api-key">OpenAI API key, optional</label>
+            <input id="api-key" type="password" placeholder="Uses local parser if blank" />
+
+            <button class="primary-button" id="parse-syllabus">AI Parse Syllabus</button>
+            <p class="status-text" id="import-status"></p>
+          </div>
+        </section>
+
+        <section class="screen" id="review-screen">
+          <div class="section">
+            <h3>Review AI Results</h3>
+            <p class="helper-text">Edit anything that looks off, then save it into your dashboard.</p>
+            <p class="status-text" id="review-status"></p>
+            <div id="review-list"></div>
+            <div class="button-row">
+              <button class="text-button" id="back-to-import">← Import</button>
+              <button class="primary-button" id="save-review">Save</button>
+            </div>
+          </div>
+        </section>
+      </main>
     </div>
 
     <script src="renderer.js"></script>
