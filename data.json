@@ -7,6 +7,46 @@
         "Wed"
       ],
       "time": "12h30pm-1h45pm"
+    },
+    {
+      "name": "Math 215",
+      "days": [
+        "Mon",
+        "Wed"
+      ],
+      "time": "10:00am-11:00am"
+    },
+    {
+      "name": "CS 450 Networking",
+      "days": [
+        "Mon",
+        "Wed"
+      ],
+      "time": "11:00am-12:15pm"
+    },
+    {
+      "name": "CS 377 Ethics",
+      "days": [
+        "Mon",
+        "Wed"
+      ],
+      "time": "2:00pm-3:15pm"
+    },
+    {
+      "name": "CS 378 App Dev",
+      "days": [
+        "Mon",
+        "Wed"
+      ],
+      "time": "3:30pm-4:45pm"
+    },
+    {
+      "name": "CS 401 Computer Theory",
+      "days": [
+        "Mon",
+        "Wed"
+      ],
+      "time": "5:00pm-6:15pm"
     }
   ],
   "assignments": [
