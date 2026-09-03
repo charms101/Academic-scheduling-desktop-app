@@ -4,6 +4,7 @@ const path = require('path')
 
 const dataPath = path.join(__dirname, 'data.json')
 const envPath = path.join(__dirname, '.env')
+const defaultGeminiModel = 'gemini-3.6-flash'
 
 function createWindow() { //a wraped fxn we can call when electron is ready
     const { width, height } = screen.getPrimaryDisplay().workAreaSize //getting monitors usable size
@@ -57,15 +58,24 @@ function normalizeText(value) {
 }
 
 async function getGeminiApiKey() {
-    if (normalizeText(process.env.GEMINI_API_KEY)) {
-        return normalizeText(process.env.GEMINI_API_KEY)
+    return getEnvValue('GEMINI_API_KEY')
+}
+
+async function getGeminiModel() {
+    const model = await getEnvValue('GEMINI_MODEL') || defaultGeminiModel
+    return model.replace(/^models\//, '')
+}
+
+async function getEnvValue(name) {
+    if (normalizeText(process.env[name])) {
+        return normalizeText(process.env[name])
     }
 
     try {
         const envFile = await fs.readFile(envPath, 'utf-8')
         const line = envFile
             .split(/\r?\n/)
-            .find(entry => entry.trim().startsWith('GEMINI_API_KEY='))
+            .find(entry => entry.trim().startsWith(`${name}=`))
 
         if (!line) return ''
 
@@ -294,13 +304,11 @@ async function extractTextFromFile(filePath) {
 function getScheduleSchema() {
     return {
         type: 'object',
-        additionalProperties: false,
         properties: {
             classes: {
                 type: 'array',
                 items: {
                     type: 'object',
-                    additionalProperties: false,
                     properties: {
                         name: { type: 'string' },
                         days: {
@@ -316,7 +324,6 @@ function getScheduleSchema() {
                 type: 'array',
                 items: {
                     type: 'object',
-                    additionalProperties: false,
                     properties: {
                         name: { type: 'string' },
                         due: { type: 'string' }
@@ -328,7 +335,6 @@ function getScheduleSchema() {
                 type: 'array',
                 items: {
                     type: 'object',
-                    additionalProperties: false,
                     properties: {
                         name: { type: 'string' },
                         date: { type: 'string' },
@@ -363,7 +369,8 @@ ${text.slice(0, 120000)}`
 }
 
 async function parseSyllabusWithGemini(text, apiKey) {
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
+    const model = await getGeminiModel()
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: 'POST',
         headers: {
             'x-goog-api-key': apiKey,

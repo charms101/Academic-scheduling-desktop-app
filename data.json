@@ -1,5 +1,19 @@
 {
-  "classes": [],
+  "classes": [
+    {
+      "name": "CS 473",
+      "days": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu",
+        "Fri",
+        "Sat",
+        "Sun"
+      ],
+      "time": "12:30"
+    }
+  ],
   "assignments": [],
   "exams": []
 }
