@@ -55,6 +55,12 @@ function normalizeText(value) {
     return String(value || '').trim()
 }
 
+function extractCourseCode(text) {
+    const match = normalizeText(text).match(/\b([A-Z]{2,5})\s*-?\s*(\d{3,4})\b/i)
+    if (!match) return ''
+    return `${match[1].toUpperCase()} ${match[2]}`
+}
+
 function normalizeDate(value) {
     const text = normalizeText(value)
     if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return ''
@@ -117,6 +123,12 @@ function mergeDashboardData(existing, imported) {
 
 function parseDateFromText(text) {
     const currentYear = new Date().getFullYear()
+    const monthNames = {
+        jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3,
+        apr: 4, april: 4, may: 5, jun: 6, june: 6, jul: 7, july: 7,
+        aug: 8, august: 8, sep: 9, sept: 9, september: 9, oct: 10,
+        october: 10, nov: 11, november: 11, dec: 12, december: 12
+    }
     const iso = text.match(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/)
     if (iso) {
         return `${iso[1]}-${iso[2].padStart(2, '0')}-${iso[3].padStart(2, '0')}`
@@ -128,18 +140,21 @@ function parseDateFromText(text) {
         return `${year}-${slash[1].padStart(2, '0')}-${slash[2].padStart(2, '0')}`
     }
 
-    const monthNames = {
-        jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3,
-        apr: 4, april: 4, may: 5, jun: 6, june: 6, jul: 7, july: 7,
-        aug: 8, august: 8, sep: 9, sept: 9, september: 9, oct: 10,
-        october: 10, nov: 11, november: 11, dec: 12, december: 12
-    }
     const named = text.match(/\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t)?(?:ember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+(\d{1,2})(?:,\s*(20\d{2}))?\b/i)
-    if (!named) return ''
+    if (named) {
+        const month = monthNames[named[1].toLowerCase().replace('.', '')]
+        const year = named[3] || String(currentYear)
+        return `${year}-${String(month).padStart(2, '0')}-${named[2].padStart(2, '0')}`
+    }
 
-    const month = monthNames[named[1].toLowerCase().replace('.', '')]
-    const year = named[3] || String(currentYear)
-    return `${year}-${String(month).padStart(2, '0')}-${named[2].padStart(2, '0')}`
+    const dayFirst = text.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t)?(?:ember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)(?:,?\s*(20\d{2}))?\b/i)
+    if (dayFirst) {
+        const month = monthNames[dayFirst[2].toLowerCase().replace('.', '')]
+        const year = dayFirst[3] || String(currentYear)
+        return `${year}-${String(month).padStart(2, '0')}-${dayFirst[1].padStart(2, '0')}`
+    }
+
+    return ''
 }
 
 function parseTimeFromText(text) {
@@ -173,9 +188,18 @@ function parseDaysFromText(text) {
 function parseSyllabusLocally(text) {
     const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean)
     const result = { classes: [], assignments: [], exams: [] }
-    const courseLine = lines.find(line => /\b[A-Z]{2,5}\s*\d{3,4}\b/.test(line))
+    const courseCodes = [...new Set(lines.map(extractCourseCode).filter(Boolean))]
+    const courseLine = lines.find(line => extractCourseCode(line))
 
-    if (courseLine) {
+    if (courseCodes.length) {
+        courseCodes.forEach(code => {
+            result.classes.push({
+                name: code,
+                days: parseDaysFromText(text),
+                time: parseTimeFromText(text)
+            })
+        })
+    } else if (courseLine) {
         result.classes.push({
             name: courseLine.replace(/\s+/g, ' ').slice(0, 80),
             days: parseDaysFromText(text),
@@ -188,15 +212,19 @@ function parseSyllabusLocally(text) {
         if (!date) return
 
         const lower = line.toLowerCase()
+        const courseCode = extractCourseCode(line)
         const cleanName = line.replace(/\s+/g, ' ').slice(0, 100)
+        const itemName = courseCode && !cleanName.toUpperCase().includes(courseCode)
+            ? `${courseCode} ${cleanName}`
+            : cleanName
 
         if (/\b(exam|quiz|midterm|final|test)\b/.test(lower)) {
-            result.exams.push({ name: cleanName, date, time: parseTimeFromText(line) })
+            result.exams.push({ name: itemName, date, time: parseTimeFromText(line) })
             return
         }
 
         if (/\b(homework|assignment|project|paper|essay|lab|milestone|due|submit|report)\b/.test(lower)) {
-            result.assignments.push({ name: cleanName, due: date })
+            result.assignments.push({ name: itemName, due: date })
         }
     })
 
@@ -223,6 +251,8 @@ async function extractTextFromFile(filePath) {
 }
 
 async function parseSyllabusWithOpenAI(text, apiKey) {
+    const today = new Date().toISOString().slice(0, 10)
+    const currentYear = new Date().getFullYear()
     const response = await fetch('https://api.openai.com/v1/responses', {
         method: 'POST',
         headers: {
@@ -231,7 +261,7 @@ async function parseSyllabusWithOpenAI(text, apiKey) {
         },
         body: JSON.stringify({
             model: 'gpt-5-mini',
-            instructions: 'Extract an academic schedule from a syllabus. Return only items explicitly present in the text. Dates must be ISO YYYY-MM-DD. Day abbreviations must be Mon, Tue, Wed, Thu, Fri, Sat, or Sun. If a time is missing, use an empty string.',
+            instructions: `Extract an academic schedule from a syllabus or short typed academic notes. Today is ${today}. Return only items explicitly present in the text. Dates must be ISO YYYY-MM-DD. If a date has no year, assume the current year is ${currentYear}. Day abbreviations must be Mon, Tue, Wed, Thu, Fri, Sat, or Sun. If a time is missing, use an empty string. When a note names a course code like CS 377, add a class item named exactly "CS 377" if no fuller class name is provided. Keep assignment and exam names close to the user wording, including the course code when present.`,
             input: text.slice(0, 120000),
             text: {
                 format: {
