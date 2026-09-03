@@ -137,7 +137,7 @@ function renderExams(data) {
     .filter(e => {
       const examDate = parseLocalDate(e.date)
       const diff = (examDate - today) / (1000 * 60 * 60 * 24)
-      return diff >= -1 && diff <= 14
+      return diff >= -1
     })
     .sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date))
 
