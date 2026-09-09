@@ -543,6 +543,29 @@ ipcMain.handle('delete-class', async (_event, className) => {
     return writeDashboardData(nextData)
 })
 
+ipcMain.handle('update-schedule-item', async (_event, payload) => {
+    const type = payload?.type
+    const index = Number(payload?.index)
+    const item = payload?.item
+    const existing = await readDashboardData()
+
+    if (!['assignments', 'exams'].includes(type)) throw new Error('Unsupported item type.')
+    if (!Number.isInteger(index) || index < 0 || index >= (existing[type] || []).length) {
+        throw new Error('Could not find the item to edit.')
+    }
+
+    const normalized = normalizeImportedData({
+        classes: [],
+        assignments: type === 'assignments' ? [item] : [],
+        exams: type === 'exams' ? [item] : []
+    })
+    const nextItem = normalized[type][0]
+    if (!nextItem) throw new Error('Name and date are required.')
+
+    existing[type][index] = nextItem
+    return writeDashboardData(existing)
+})
+
 app.whenReady().then(createWindow)
 
 app.on('window-all-closed', () => {

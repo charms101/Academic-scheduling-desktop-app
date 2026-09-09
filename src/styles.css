@@ -167,6 +167,17 @@ button {
   text-align: left;
 }
 
+.editable-card {
+  width: 100%;
+  display: block;
+  text-align: left;
+}
+
+.editable-card:hover,
+.class-card:hover {
+  border-color: rgba(200, 75, 109, 0.58);
+}
+
 .class-card strong,
 .class-item strong,
 .assignment-item strong,

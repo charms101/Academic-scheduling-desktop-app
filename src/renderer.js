@@ -8,12 +8,14 @@ const screenTitles = {
   classes: 'Classes',
   import: 'Import Syllabus',
   review: 'Review Results',
-  'class-detail': 'Class Details'
+  'class-detail': 'Class Details',
+  'edit-item': 'Edit Item'
 }
 
 let dashboardData = { classes: [], assignments: [], exams: [] }
 let importedData = { classes: [], assignments: [], exams: [] }
 let selectedClassName = ''
+let editingItem = null
 
 function loadData() {
   try {
@@ -59,6 +61,20 @@ function itemBelongsToClass(itemName, className) {
   return code && String(itemName || '').toUpperCase().includes(code)
 }
 
+function parseStartMinutes(timeText) {
+  const match = String(timeText || '').match(/\b(\d{1,2})(?:[:h](\d{2}))?\s*(am|pm)\b/i)
+  if (!match) return Number.MAX_SAFE_INTEGER
+
+  let hours = Number(match[1])
+  const minutes = Number(match[2] || 0)
+  const period = match[3].toLowerCase()
+
+  if (period === 'pm' && hours !== 12) hours += 12
+  if (period === 'am' && hours === 12) hours = 0
+
+  return hours * 60 + minutes
+}
+
 function showScreen(name) {
   document.querySelectorAll('.screen').forEach(screen => {
     screen.classList.toggle('active', screen.id === `${name}-screen`)
@@ -89,7 +105,9 @@ function updateClock() {
 function renderClasses(data) {
   const container = document.getElementById('todays-classes')
   const today = new Date().toLocaleDateString('en-US', { weekday: 'short' })
-  const todayClasses = data.classes.filter(c => Array.isArray(c.days) && c.days.includes(today))
+  const todayClasses = data.classes
+    .filter(c => Array.isArray(c.days) && c.days.includes(today))
+    .sort((a, b) => parseStartMinutes(a.time) - parseStartMinutes(b.time))
 
   if (todayClasses.length === 0) {
     container.innerHTML = '<p class="empty">No classes today</p>'
@@ -104,59 +122,135 @@ function renderClasses(data) {
   `).join('')
 }
 
-function renderAssignments(data) {
-  const container = document.getElementById('due-soon')
+function getUpcomingAssignments(data) {
   const today = new Date()
-
-  const upcoming = data.assignments
-    .filter(a => {
-      const due = parseLocalDate(a.due)
+  return data.assignments
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => {
+      const due = parseLocalDate(item.due)
       const diff = (due - today) / (1000 * 60 * 60 * 24)
       return diff >= -1 && diff <= 7
     })
-    .sort((a, b) => parseLocalDate(a.due) - parseLocalDate(b.due))
+    .sort((a, b) => parseLocalDate(a.item.due) - parseLocalDate(b.item.due))
+}
+
+function getUpcomingExams(data) {
+  const today = new Date()
+  return data.exams
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => {
+      const examDate = parseLocalDate(item.date)
+      const diff = (examDate - today) / (1000 * 60 * 60 * 24)
+      return diff >= -1
+    })
+    .sort((a, b) => parseLocalDate(a.item.date) - parseLocalDate(b.item.date))
+}
+
+function attachEditCardEvents(container) {
+  container.querySelectorAll('[data-edit-type]').forEach(card => {
+    card.addEventListener('click', () => {
+      openEditItem(card.dataset.editType, Number(card.dataset.editIndex))
+    })
+  })
+}
+
+function openEditItem(type, index) {
+  const item = dashboardData[type]?.[index]
+  if (!item) return
+
+  editingItem = { type, index }
+  const isExam = type === 'exams'
+  document.getElementById('edit-item-heading').textContent = isExam ? 'Edit Exam' : 'Edit Assignment'
+  document.getElementById('edit-item-name').value = item.name || ''
+  document.getElementById('edit-item-date').value = isExam ? item.date || '' : item.due || ''
+  document.getElementById('edit-item-time').value = isExam ? item.time || '' : ''
+  document.getElementById('edit-item-time').previousElementSibling.style.display = isExam ? 'block' : 'none'
+  document.getElementById('edit-item-time').style.display = isExam ? 'block' : 'none'
+  document.getElementById('edit-item-status').textContent = ''
+  document.getElementById('edit-item-status').classList.remove('error')
+  showScreen('edit-item')
+}
+
+async function saveEditedItem() {
+  if (!editingItem) return
+
+  const isExam = editingItem.type === 'exams'
+  const name = document.getElementById('edit-item-name').value.trim()
+  const date = document.getElementById('edit-item-date').value
+  const time = document.getElementById('edit-item-time').value.trim()
+  const status = document.getElementById('edit-item-status')
+
+  if (!name || !date) {
+    status.textContent = 'Name and date are required.'
+    status.classList.add('error')
+    return
+  }
+
+  const item = isExam ? { name, date, time } : { name, due: date }
+
+  try {
+    const saved = await ipcRenderer.invoke('update-schedule-item', {
+      type: editingItem.type,
+      index: editingItem.index,
+      item
+    })
+    dashboardData = saved
+    editingItem = null
+    render()
+    showScreen('dashboard')
+  } catch (error) {
+    status.textContent = `Could not save: ${error.message}`
+    status.classList.add('error')
+  }
+}
+
+function cancelEditItem() {
+  editingItem = null
+  showScreen('dashboard')
+}
+
+function renderAssignments(data) {
+  const container = document.getElementById('due-soon')
+  const upcoming = getUpcomingAssignments(data)
 
   if (upcoming.length === 0) {
     container.innerHTML = '<p class="empty">Nothing due soon</p>'
     return
   }
 
-  container.innerHTML = upcoming.map(a => `
-    <div class="assignment-item">
-      <strong>${escapeHtml(a.name)}</strong>
-      <div class="due">Due ${escapeHtml(formatDate(a.due))}</div>
-    </div>
+  container.innerHTML = upcoming.map(({ item, index }) => `
+    <button class="assignment-item editable-card" data-edit-type="assignments" data-edit-index="${index}">
+      <strong>${escapeHtml(item.name)}</strong>
+      <div class="due">Due ${escapeHtml(formatDate(item.due))}</div>
+    </button>
   `).join('')
+
+  attachEditCardEvents(container)
 }
 
 function renderExams(data) {
   const container = document.getElementById('exams')
   const today = new Date()
-
-  const upcoming = data.exams
-    .filter(e => {
-      const examDate = parseLocalDate(e.date)
-      const diff = (examDate - today) / (1000 * 60 * 60 * 24)
-      return diff >= -1
-    })
-    .sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date))
+  const upcoming = getUpcomingExams(data)
 
   if (upcoming.length === 0) {
     container.innerHTML = '<p class="empty">No upcoming exams</p>'
     return
   }
 
-  container.innerHTML = upcoming.map(e => {
-    const examDate = parseLocalDate(e.date)
+  container.innerHTML = upcoming.map(({ item, index }) => {
+    const examDate = parseLocalDate(item.date)
     const diff = Math.max(0, Math.ceil((examDate - today) / (1000 * 60 * 60 * 24)))
     const urgent = diff <= 2
     return `
-      <div class="exam-item ${urgent ? 'urgent' : ''}">
-        <strong>${escapeHtml(e.name)}</strong>
-        <div class="countdown">${escapeHtml(formatDate(e.date))}${e.time ? ` at ${escapeHtml(e.time)}` : ''} · ${diff} day${diff !== 1 ? 's' : ''} away</div>
-      </div>
+      <button class="exam-item editable-card ${urgent ? 'urgent' : ''}" data-edit-type="exams" data-edit-index="${index}">
+        <strong>${escapeHtml(item.name)}</strong>
+        <div class="countdown">${escapeHtml(formatDate(item.date))}${item.time ? ` at ${escapeHtml(item.time)}` : ''} · ${diff} day${diff !== 1 ? 's' : ''} away</div>
+      </button>
     `
   }).join('')
+
+  attachEditCardEvents(container)
 }
 
 function renderClassList(data) {
@@ -166,7 +260,11 @@ function renderClassList(data) {
     return
   }
 
-  container.innerHTML = data.classes.map((classItem, index) => `
+  const sortedClasses = data.classes
+    .map((classItem, index) => ({ classItem, index }))
+    .sort((a, b) => parseStartMinutes(a.classItem.time) - parseStartMinutes(b.classItem.time))
+
+  container.innerHTML = sortedClasses.map(({ classItem, index }) => `
     <button class="class-card" data-class-index="${index}">
       <strong>${escapeHtml(classItem.name)}</strong>
       <div class="meta">${escapeHtml(getDaysLabel(classItem.days))}${classItem.time ? ` · ${escapeHtml(classItem.time)}` : ''}</div>
@@ -195,31 +293,35 @@ function renderClassDetail(index) {
   `
 
   const assignments = dashboardData.assignments
-    .filter(item => itemBelongsToClass(item.name, classItem.name))
-    .sort((a, b) => parseLocalDate(a.due) - parseLocalDate(b.due))
+    .map((item, originalIndex) => ({ item, originalIndex }))
+    .filter(({ item }) => itemBelongsToClass(item.name, classItem.name))
+    .sort((a, b) => parseLocalDate(a.item.due) - parseLocalDate(b.item.due))
 
   const exams = dashboardData.exams
-    .filter(item => itemBelongsToClass(item.name, classItem.name))
-    .sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date))
+    .map((item, originalIndex) => ({ item, originalIndex }))
+    .filter(({ item }) => itemBelongsToClass(item.name, classItem.name))
+    .sort((a, b) => parseLocalDate(a.item.date) - parseLocalDate(b.item.date))
 
   document.getElementById('detail-assignments').innerHTML = assignments.length
-    ? assignments.map(item => `
-      <div class="assignment-item">
+    ? assignments.map(({ item, originalIndex }) => `
+      <button class="assignment-item editable-card" data-edit-type="assignments" data-edit-index="${originalIndex}">
         <strong>${escapeHtml(item.name)}</strong>
         <div class="due">Due ${escapeHtml(formatDate(item.due))}</div>
-      </div>
+      </button>
     `).join('')
     : '<p class="empty">No assignments matched to this class</p>'
 
   document.getElementById('detail-exams').innerHTML = exams.length
-    ? exams.map(item => `
-      <div class="exam-item">
+    ? exams.map(({ item, originalIndex }) => `
+      <button class="exam-item editable-card" data-edit-type="exams" data-edit-index="${originalIndex}">
         <strong>${escapeHtml(item.name)}</strong>
         <div class="countdown">${escapeHtml(formatDate(item.date))}${item.time ? ` at ${escapeHtml(item.time)}` : ''}</div>
-      </div>
+      </button>
     `).join('')
     : '<p class="empty">No exams matched to this class</p>'
 
+  attachEditCardEvents(document.getElementById('detail-assignments'))
+  attachEditCardEvents(document.getElementById('detail-exams'))
   showScreen('class-detail')
 }
 
@@ -406,6 +508,8 @@ function attachEvents() {
   document.getElementById('back-to-classes').addEventListener('click', () => showScreen('classes'))
   document.getElementById('delete-class').addEventListener('click', deleteSelectedClass)
   document.getElementById('back-to-import').addEventListener('click', () => showScreen('import'))
+  document.getElementById('cancel-edit-item').addEventListener('click', cancelEditItem)
+  document.getElementById('save-edit-item').addEventListener('click', saveEditedItem)
   document.getElementById('parse-syllabus').addEventListener('click', parseSyllabus)
   document.getElementById('save-review').addEventListener('click', saveReview)
 }
