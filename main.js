@@ -2,8 +2,9 @@ const { app, BrowserWindow, ipcMain, screen } = require('electron') //imports ap
 const fs = require('fs/promises')
 const path = require('path')
 
-const dataPath = path.join(__dirname, 'data.json')
-const envPath = path.join(__dirname, '.env')
+const devDataPath = path.join(__dirname, 'data.json')
+const devEnvPath = path.join(__dirname, '.env')
+const packagedDataFile = 'data.json'
 const defaultGeminiModel = 'gemini-3.7-flash'
 const fallbackGeminiModels = [
     'gemini-3.7-flash',
@@ -15,6 +16,35 @@ const fallbackGeminiModels = [
 ]
 const deprecatedGeminiModels = new Set(['gemini-2.5-flash', 'gemini-2.0-flash'])
 const retryableGeminiStatuses = new Set([404, 429, 500, 502, 503, 504])
+
+async function setupStartup() {
+    if (!app.isPackaged) return
+
+    app.setLoginItemSettings({
+        openAtLogin: true,
+        openAsHidden: false
+    })
+}
+
+function getDataPath() {
+    return app.isPackaged ? path.join(app.getPath('userData'), packagedDataFile) : devDataPath
+}
+
+function getEnvPath() {
+    return app.isPackaged ? path.join(app.getPath('userData'), '.env') : devEnvPath
+}
+
+async function ensurePackagedDataFile() {
+    if (!app.isPackaged) return
+
+    const userDataPath = getDataPath()
+    try {
+        await fs.access(userDataPath)
+    } catch (error) {
+        const bundledData = await fs.readFile(devDataPath, 'utf-8')
+        await fs.writeFile(userDataPath, bundledData)
+    }
+}
 
 function createWindow() { //a wraped fxn we can call when electron is ready
     const { width, height } = screen.getPrimaryDisplay().workAreaSize //getting monitors usable size
@@ -51,7 +81,7 @@ function createWindow() { //a wraped fxn we can call when electron is ready
 
 async function readDashboardData() {
     try {
-        const raw = await fs.readFile(dataPath, 'utf-8')
+        const raw = await fs.readFile(getDataPath(), 'utf-8')
         return JSON.parse(raw)
     } catch (error) {
         return { classes: [], assignments: [], exams: [] }
@@ -59,7 +89,7 @@ async function readDashboardData() {
 }
 
 async function writeDashboardData(data) {
-    await fs.writeFile(dataPath, `${JSON.stringify(data, null, 2)}\n`)
+    await fs.writeFile(getDataPath(), `${JSON.stringify(data, null, 2)}\n`)
     return data
 }
 
@@ -101,7 +131,7 @@ async function getEnvValue(name) {
     }
 
     try {
-        const envFile = await fs.readFile(envPath, 'utf-8')
+        const envFile = await fs.readFile(getEnvPath(), 'utf-8')
         const line = envFile
             .split(/\r?\n/)
             .find(entry => entry.trim().startsWith(`${name}=`))
@@ -566,7 +596,11 @@ ipcMain.handle('update-schedule-item', async (_event, payload) => {
     return writeDashboardData(existing)
 })
 
-app.whenReady().then(createWindow)
+app.whenReady().then(async () => {
+    await ensurePackagedDataFile()
+    await setupStartup()
+    createWindow()
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

@@ -12,7 +12,7 @@
     "productName": "Homework App",
     "mac": {
       "category": "public.app-category.productivity",
-      "target": "dmg"
+      "target": "dir"
     },
     "files": [
       "main.js",
